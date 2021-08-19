@@ -1,14 +1,14 @@
 const { ApolloServer } = require(`apollo-server`);
 
-// User 타입에서 Photo 타입으로 건너갈 수 있으니 방향성을 띈 그래프를 만든 셈입니다.
-// 다시 Photo 타입에서 User 타입으로 거슬러 갈 수 있게해서 무방향 그래프가 됩니다.
-// 하나의 사진은 User 한명에 의해 게시된 것이기에 일대일 연결 관계입니다.
+// user 한명이 여러장의 사진에 태그도리 수 있고, photo 한장에는 여러명의 사용자가 태그될 수 있어서 다대다 관계가 생성됩니다.
+// taggedUsers 필드는 사용자 리스트를 반환하고 inPhotos 필드는 사용자가 태그된 사진 리스트를 반환합니다.
 const typeDefs = `
 type User {
   githubLogin : ID!
   name : String
   avatar: String
   postedPhotos: [Photo!]!
+  idPhotos:[Photo!]!
 }
 
 enum PhotoCategory {
@@ -27,6 +27,7 @@ type Photo {
     description : String
     category : PhotoCategory!
     postedBy : User!
+    taggedUsers:[User!]!
 }
 
 input PostPhotoInput {
@@ -46,7 +47,6 @@ type Mutation {
 `;
 
 var _id = 0;
-// 서버를 테스트하기 위해 샘플 데이터를 추가
 var users = [
   {
     githubLogin: "mHattrup",
@@ -83,6 +83,13 @@ var photos = [
     githubUser: "sSchmidt",
   },
 ];
+// 다대다 관계 테스트를 위해 샘플 태그 데이터가 담긴 배열 추가
+var tags = [
+  { photoID: "1", userID: "gPlake" },
+  { photoID: "2", userID: "sSchmidt" },
+  { photoID: "2", userID: "mHattrup" },
+  { photoID: "2", userID: "gPlake" },
+];
 
 const resolvers = {
   Query: {
@@ -105,11 +112,27 @@ const resolvers = {
     postedBy: (parent) => {
       return users.find((u) => u.githubLogin === parent.githubUser);
     },
+    taggedUsers: (parent) =>
+      tags
+        // 현재 사진에 대한 태그만 배열에 담아 반환합니다.
+        .filter((tag) => tag.photoID === parent.id)
+        // 태그 배열을 userID 배열로 변환합니다.
+        .map((tag) => tag.userID)
+        // userID 배열을 사용자 객체 배열로 변환합니다.
+        .map((userID) => users.find((u) => u.githubLogin === userID)),
   },
   User: {
     postedPhotos: (parent) => {
       return photos.filter((p) => p.githubUser === parent.githubLogin);
     },
+    idPhotos: (parent) =>
+      tags
+        // 현재 사용자에 대한 태그만 배열에 담아 변환합니다.
+        .filter((tag) => tag.userID === parent.id)
+        // 태그 배열을 photoID 배열로 변환합니다.
+        .map((tag) => tag.photoID)
+        // photoID배열을 사진 객체 배열로 변환합니다.
+        .map((photoID) => photos.find((p) => p.id === photoID)),
   },
 };
 
