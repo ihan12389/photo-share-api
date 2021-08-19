@@ -1,14 +1,29 @@
 const { ApolloServer } = require(`apollo-server`);
 
-// 1. Photo 타입 정의를 추가합니다.
-// 2. allPhotos에서 Photo 타입을 반환합니다.
-// 3. 뮤테이션에서 새로 게시된 사진을 반환합니다.
+// PhotoCategory 열거 타입과 PostPhotoInput 인풋 타입을 typeDefs에 추가
+// 열거(enum)와 인풋(input) 타입 사용
+// 사용자가 카테고리 필드값을 인자에 넣지 않으면 기본값인 PORTRAIT가 들어갑니다.
 const typeDefs = `
+enum PhotoCategory {
+  SELFIE
+  PORTRAIT
+  ACTION
+  LANDSCAPE
+  GRAPHIC
+}
+
 type Photo {
     id : ID!
     url: String!
     name : String!
     description : String
+    category : PhotoCategory!
+}
+
+input PostPhotoInput {
+  name : String!
+  category : PhotoCategory=PORTRAIT
+  description : String
 }
 
 type Query {
@@ -17,11 +32,10 @@ type Query {
 }
 
 type Mutation {
-  postPhoto(name:String! description:String):Photo!
+  postPhoto(input: PostPhotoInput!):Photo!
 }
 `;
 
-// 1. 고유 ID를 만들기 위해 값을 하나씩 증가시킬 변수입니다.
 var _id = 0;
 var photos = [];
 
@@ -31,15 +45,14 @@ const resolvers = {
     allPhotos: () => photos,
   },
   Mutation: {
+    // args 대신 args.input을 사용해 값에 접근
     postPhoto(parent, args) {
-      // 2. 새로운 사진을 만들고 id를 부여합니다.
       var newPhoto = {
         id: _id++,
-        ...args,
+        ...args.input,
       };
       photos.push(newPhoto);
 
-      // 3. 새로 만든 사진을 반환합니다.
       return newPhoto;
     },
   },
@@ -56,3 +69,23 @@ const server = new ApolloServer({
 server
   .listen()
   .then(({ url }) => console.log(`GraphQL Service running on ${url}`));
+
+/*
+  mutation newPhoto($input: PostPhotoInput!) {
+    postPhoto(input: $input) {
+      id
+      name
+      url
+        description
+      category
+    }
+  }
+variables
+  {
+    "input" : {
+      "name" : "sample photo A",
+      "description" : "A sample photo for our dataset"
+    }
+  }
+
+*/
