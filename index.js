@@ -1,9 +1,16 @@
 const { ApolloServer } = require(`apollo-server`);
 
-// PhotoCategory 열거 타입과 PostPhotoInput 인풋 타입을 typeDefs에 추가
-// 열거(enum)와 인풋(input) 타입 사용
-// 사용자가 카테고리 필드값을 인자에 넣지 않으면 기본값인 PORTRAIT가 들어갑니다.
+// User 타입에서 Photo 타입으로 건너갈 수 있으니 방향성을 띈 그래프를 만든 셈입니다.
+// 다시 Photo 타입에서 User 타입으로 거슬러 갈 수 있게해서 무방향 그래프가 됩니다.
+// 하나의 사진은 User 한명에 의해 게시된 것이기에 일대일 연결 관계입니다.
 const typeDefs = `
+type User {
+  githubLogin : ID!
+  name : String
+  avatar: String
+  postedPhotos: [Photo!]!
+}
+
 enum PhotoCategory {
   SELFIE
   PORTRAIT
@@ -12,12 +19,14 @@ enum PhotoCategory {
   GRAPHIC
 }
 
+
 type Photo {
     id : ID!
     url: String!
     name : String!
     description : String
     category : PhotoCategory!
+    postedBy : User!
 }
 
 input PostPhotoInput {
@@ -37,7 +46,43 @@ type Mutation {
 `;
 
 var _id = 0;
-var photos = [];
+// 서버를 테스트하기 위해 샘플 데이터를 추가
+var users = [
+  {
+    githubLogin: "mHattrup",
+    name: "Mike Hattrup",
+  },
+  {
+    githubLogin: "gPlake",
+    name: "Glen Plake",
+  },
+  {
+    githubLogin: "sSchmidt",
+    name: "Scot Schmidt",
+  },
+];
+var photos = [
+  {
+    id: "1",
+    name: "Droppint the Heart Chute",
+    description: "The heart chute is one of my favorite cutes",
+    category: "ACTION",
+    githubUser: "gPlake",
+  },
+  {
+    id: "2",
+    name: "Enjoying the sunshine",
+    category: "SELFIE",
+    githubUser: "sSchmidt",
+  },
+  {
+    id: "3",
+    name: "Gunbarrel 25",
+    description: "25 laps on gunbarrel today",
+    category: "LANDSCAPE",
+    githubUser: "sSchmidt",
+  },
+];
 
 const resolvers = {
   Query: {
@@ -45,7 +90,6 @@ const resolvers = {
     allPhotos: () => photos,
   },
   Mutation: {
-    // args 대신 args.input을 사용해 값에 접근
     postPhoto(parent, args) {
       var newPhoto = {
         id: _id++,
@@ -58,6 +102,14 @@ const resolvers = {
   },
   Photo: {
     url: (parent) => `https://yoursite.com/img/${parent.id}.jpg`,
+    postedBy: (parent) => {
+      return users.find((u) => u.githubLogin === parent.githubUser);
+    },
+  },
+  User: {
+    postedPhotos: (parent) => {
+      return photos.filter((p) => p.githubUser === parent.githubLogin);
+    },
   },
 };
 
@@ -69,23 +121,3 @@ const server = new ApolloServer({
 server
   .listen()
   .then(({ url }) => console.log(`GraphQL Service running on ${url}`));
-
-/*
-  mutation newPhoto($input: PostPhotoInput!) {
-    postPhoto(input: $input) {
-      id
-      name
-      url
-        description
-      category
-    }
-  }
-variables
-  {
-    "input" : {
-      "name" : "sample photo A",
-      "description" : "A sample photo for our dataset"
-    }
-  }
-
-*/
