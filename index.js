@@ -1,53 +1,15 @@
-const { ApolloServer } = require(`apollo-server`);
-const { GraphQLScalarType } = require("graphql");
+const expressPlayground =
+  require("graphql-playground-middleware-express").default;
 
-// 스칼라 타입을 직접 만들 때는 타입 직렬화와 유효성 검사 방식을 고려해야 합니다.
-// DateTime 타입을 만들려고 한다면 유효한 DateTime에 대한 정의가 우선되어야 합니다.
-// typeDefs에 직접 만든 DateTime 스칼라 타입을 추가하여 Photo 타입의 created 필드에서 사용합니다. (created 필드는 사진이 게시된 날짜와 시간을 기록하는 용도입니다.)
-const typeDefs = `
-type User {
-  githubLogin : ID!
-  name : String
-  avatar: String
-  postedPhotos: [Photo!]!
-  idPhotos:[Photo!]!
-}
+// Node.js의 fs 모듈로 typeDefs.graphql 파일의 내용을 읽어들입니다.
+const { readFileSync } = require("fs");
 
-enum PhotoCategory {
-  SELFIE
-  PORTRAIT
-  ACTION
-  LANDSCAPE
-  GRAPHIC
-}
+const typeDefs = readFileSync("./typeDefs.graphql", "UTF-8");
+const resolvers = require("./resolvers");
 
-scalar DateTime
-type Photo {
-    id : ID!
-    url: String!
-    name : String!
-    description : String
-    category : PhotoCategory!
-    postedBy : User!
-    taggedUsers:[User!]!
-    created:DateTime!
-}
-
-input PostPhotoInput {
-  name : String!
-  category : PhotoCategory=PORTRAIT
-  description : String
-}
-
-type Query {
-  totalPhotos : Int!
-  allPhotos(after: DateTime): [Photo!]!
-}
-
-type Mutation {
-  postPhoto(input: PostPhotoInput!):Photo!
-}
-`;
+// 1. 'apollo-server-express'와 'express'를 require합니다.
+const { ApolloServer } = require(`apollo-server-express`);
+const express = require("express");
 
 var _id = 0;
 var users = [
@@ -96,66 +58,28 @@ var tags = [
   { photoID: "2", userID: "gPlake" },
 ];
 
-const resolvers = {
-  Query: {
-    totalPhotos: () => photos.length,
-    allPhotos: () => photos,
-  },
-  Mutation: {
-    postPhoto(parent, args) {
-      var newPhoto = {
-        id: _id++,
-        ...args.input,
-        created: new Date(),
-      };
-      photos.push(newPhoto);
-
-      return newPhoto;
-    },
-  },
-  Photo: {
-    url: (parent) => `https://yoursite.com/img/${parent.id}.jpg`,
-    postedBy: (parent) => {
-      return users.find((u) => u.githubLogin === parent.githubUser);
-    },
-    taggedUsers: (parent) =>
-      tags
-        .filter((tag) => tag.photoID === parent.id)
-        .map((tag) => tag.userID)
-        .map((userID) => users.find((u) => u.githubLogin === userID)),
-  },
-  User: {
-    postedPhotos: (parent) => {
-      return photos.filter((p) => p.githubUser === parent.githubLogin);
-    },
-    idPhotos: (parent) =>
-      tags
-        .filter((tag) => tag.userID === parent.id)
-        .map((tag) => tag.photoID)
-        .map((photoID) => photos.find((p) => p.id === photoID)),
-  },
-  // GraphQLScalarType 객체로 커스텀 스칼라 타입에 대응하는 리졸버를 만들었습니다.
-  DateTime: new GraphQLScalarType({
-    name: "DateTime",
-    description: "A valid date time value",
-    // after 인자는 리졸버로 보내지기 전에 자바스크립트 Date 객체로 변환됩니다.
-    // perseValue 함수로 쿼리와 함께 받아오는 문자열 값을 변환합니다. 여기서 반환하는 모든 값은 리졸버 함수의 인자로 보내지게 됩니다.
-    parseValue: (value) => new Date(value),
-    // 필드반환 값으로 날짜를 받으면 이를 ISO 형식 문자열 값으로 직렬화합니다.
-    // serialize 함수는 객체에서 필드 값을 가져다가 사용합니다.
-    serialize: (value) => new Date(value).toISOString(), //직렬화
-    // after 인자는 쿼리 변수로 넘기지 않고 코드에 곧장 써줍니다.
-    // 인자 값은 쿼리를 추상 구문 트리(AST)로 변환한 다음 파싱을 하기 전에 추출해야 합니다.
-    // parseLiteral 함수를 사용해 파싱 전의 인자 값을 쿼리에서 가져옵니다.
-    parseLiteral: (ast) => ast.value,
-  }),
-};
+// 2. 'express()'를 호출하여 익스프레스 애플리케이션을 만듭니다.
+var app = express();
 
 const server = new ApolloServer({
   typeDefs,
   resolvers,
 });
 
-server
-  .listen()
-  .then(({ url }) => console.log(`GraphQL Service running on ${url}`));
+// 3. 'applyMiddleware()'를 호출하여 미들웨어가 같은 경로에 마운트되도록 합니다.
+server.applyMiddleware({ app });
+
+// 4. 홈 라우트를 만듭니다.
+app.get("/", (req, res) => {
+  res.writeHead(200, { "Content-Type": `text/html; charset=UTF-8 ` });
+  res.end("PhotoShare API에 오신 것을 환영합니다.");
+});
+// localhost:4000/playground에서 실행할 GraphQL 플레이그라운드 라우트를 만듭니다.
+app.get("/playground", expressPlayground({ endpoint: "/graphql" }));
+
+// 5. 특정 포토에서 리스닝을 시작합니다.
+app.listen({ port: 4000 }, () =>
+  console.log(
+    `GraphQL Server running @ http://localhost:4000${server.graphqlPath}`
+  )
+);
