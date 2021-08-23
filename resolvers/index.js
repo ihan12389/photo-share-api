@@ -52,8 +52,18 @@ var tags = [
 
 const resolvers = {
   Query: {
-    totalPhotos: () => photos.length,
-    allPhotos: () => photos,
+    // mongoDB 콜렉션 접근은 db.collection("photo")에서 이루어집니다.
+    // .estimatedDocumentCount()를 사용해 콜렉션 안의 도큐먼트 수를 얻습니다.
+    totalPhotos: (parent, args, { db }) =>
+      db.collection("photos").estimatedDocumentCount(),
+    // find().toArray()는 콜렉션 안의 모든 도큐먼트를 리스트로 받아서 배열로 변환합니다. 콜렉션이 비어있어도 코드는 동작합니다.
+    allPhotos: (parent, args, { db }) =>
+      db.collection("photos").find().toArray(),
+    // totalPhotos와 totalUsers 리졸버 함수는 아무것도 반환하지 말아야 합니다.
+    // 빈 배열을 반환해야합니다.
+    totalUsers: (parent, args, { db }) =>
+      db.collection("users").estimatedDocumentCount(),
+    allUsers: (parent, args, { db }) => db.collection("users").find().toArray(),
   },
   Mutation: {
     postPhoto(parent, args) {

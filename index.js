@@ -1,85 +1,49 @@
+const { MongoClient } = require("mongodb");
+// DB_HOST URL을 불러오기 위해 dotenv 패키지를 사용합니다.
+require("dotenv").config();
+
+const { ApolloServer } = require(`apollo-server-express`);
+const express = require("express");
+
 const expressPlayground =
   require("graphql-playground-middleware-express").default;
-
-// Node.js의 fs 모듈로 typeDefs.graphql 파일의 내용을 읽어들입니다.
 const { readFileSync } = require("fs");
 
 const typeDefs = readFileSync("./typeDefs.graphql", "UTF-8");
 const resolvers = require("./resolvers");
 
-// 1. 'apollo-server-express'와 'express'를 require합니다.
-const { ApolloServer } = require(`apollo-server-express`);
-const express = require("express");
+// 비동기 함수를 생성합니다.
+// 프로미스가 await 키워드를 해결할 때까지 기다리도록 붙잡아둡니다.
+async function start() {
+  console.log("start");
+  const app = express();
+  console.log("app");
+  const MONGO_DB = process.env.DB_HOST;
+  console.log(MONGO_DB);
 
-var _id = 0;
-var users = [
-  {
-    githubLogin: "mHattrup",
-    name: "Mike Hattrup",
-  },
-  {
-    githubLogin: "gPlake",
-    name: "Glen Plake",
-  },
-  {
-    githubLogin: "sSchmidt",
-    name: "Scot Schmidt",
-  },
-];
-var photos = [
-  {
-    id: "1",
-    name: "Droppint the Heart Chute",
-    description: "The heart chute is one of my favorite cutes",
-    category: "ACTION",
-    githubUser: "gPlake",
-    created: "3-28-1977",
-  },
-  {
-    id: "2",
-    name: "Enjoying the sunshine",
-    category: "SELFIE",
-    githubUser: "sSchmidt",
-    created: "1-2-1985",
-  },
-  {
-    id: "3",
-    name: "Gunbarrel 25",
-    description: "25 laps on gunbarrel today",
-    category: "LANDSCAPE",
-    githubUser: "sSchmidt",
-    created: "2018-04-15T19:09:57.308Z",
-  },
-];
-var tags = [
-  { photoID: "1", userID: "gPlake" },
-  { photoID: "2", userID: "sSchmidt" },
-  { photoID: "2", userID: "mHattrup" },
-  { photoID: "2", userID: "gPlake" },
-];
+  // 로컬 혹은 원격 데이터베이스 연결이 성공적으로 이루어질 때까지 기다립니다.
+  const clinet = await MongoClient.connect(MONGO_DB, {
+    useNewUrlParser: true,
+  });
+  const db = clinet.db();
 
-// 2. 'express()'를 호출하여 익스프레스 애플리케이션을 만듭니다.
-var app = express();
+  // 데이터베이스에 연결되었다면 컨텍스트 객체에 연결 정보가 추가되고 서버가 시작됩니다..
+  const context = { db };
 
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-});
+  const server = new ApolloServer({ typeDefs, resolvers, context });
 
-// 3. 'applyMiddleware()'를 호출하여 미들웨어가 같은 경로에 마운트되도록 합니다.
-server.applyMiddleware({ app });
+  server.applyMiddleware({ app });
 
-// 4. 홈 라우트를 만듭니다.
-app.get("/", (req, res) => {
-  res.writeHead(200, { "Content-Type": `text/html; charset=UTF-8 ` });
-  res.end("PhotoShare API에 오신 것을 환영합니다.");
-});
-// localhost:4000/playground에서 실행할 GraphQL 플레이그라운드 라우트를 만듭니다.
-app.get("/playground", expressPlayground({ endpoint: "/graphql" }));
+  app.get("/", (req, res) => res.end("Welcome to the PhotoShare API"));
 
-// 5. 특정 포토에서 리스닝을 시작합니다.
-app.listen({ port: 4000 }, () =>
-  console.log(
-    `GraphQL Server running @ http://localhost:4000${server.graphqlPath}`
-  )
-);
+  app.get("/playground", expressPlayground({ endpoint: "/graphql" }));
+
+  app.listen({ port: 4000 }, () =>
+    console.log(
+      `GraphQL Server running at http://localhost:4000${server.graphqlPath}`
+    )
+  );
+}
+
+// 시작 준비를 마친 후에 함수를 호출합니다.
+start();

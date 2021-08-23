@@ -1,3 +1,14 @@
+type Query {
+  totalPhotos: Int!
+  allPhotos(after: DateTime): [Photo!]!
+  totalUsers: Int!
+  allUsers: [User!]!
+}
+
+type Mutation {
+  postPhoto(input: PostPhotoInput!): Photo!
+}
+
 type User {
   githubLogin: ID!
   name: String
@@ -30,13 +41,4 @@ input PostPhotoInput {
   name: String!
   category: PhotoCategory = PORTRAIT
   description: String
-}
-
-type Query {
-  totalPhotos: Int!
-  allPhotos(after: DateTime): [Photo!]!
-}
-
-type Mutation {
-  postPhoto(input: PostPhotoInput!): Photo!
 }
